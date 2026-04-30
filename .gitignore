@@ -217,6 +217,13 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
+# .gitignore
+tokens/
+*.json
 token.json
 credentials.json
+.env
+logs/
 data.json
+__pycache__/
+*.pyc
