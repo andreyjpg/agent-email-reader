@@ -1,0 +1,11 @@
+services:
+  server:
+    build: .
+    env_file:
+      - .env
+    volumes:
+      - ./logs:/app/logs
+      - ./tokens:/app/tokens
+      - ./data.json:/app/data.json
+      - ./credentials.json:/app/credentials.json
+    restart: always

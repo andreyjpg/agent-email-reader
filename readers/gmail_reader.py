@@ -20,31 +20,45 @@ class GmailReader(BaseReader):
         self._authenticate()
 
     def _authenticate(self):
-        try:
-            if os.path.exists("token.json"):
-                self.creds = Credentials.from_authorized_user_file("token.json", SCOPES)
+      try:
+          if os.path.exists("tokens/gmail_token.json"):
+              self.creds = Credentials.from_authorized_user_file(
+                  "tokens/gmail_token.json", SCOPES
+              )
 
-            if not self.creds or not self.creds.valid:
-                if self.creds and self.creds.expired and self.creds.refresh_token:
-                    self.creds.refresh(Request())
-                else:
-                    flow = InstalledAppFlow.from_client_secrets_file(
-                        "credentials.json", SCOPES
-                    )
-                    self.creds = flow.run_local_server(port=0)
+          if not self.creds or not self.creds.valid:
+              if self.creds and self.creds.expired and self.creds.refresh_token:
+                  self.creds.refresh(Request())
+                  logging.info("Gmail token refreshed successfully")
+              else:
+                  flow = InstalledAppFlow.from_client_secrets_file(
+                      "credentials.json", SCOPES
+                  )
+                  print("\n--- Gmail Authentication Required ---", flush=True)
+                  print("Open this URL in your browser:", flush=True)
 
-                with open("token.json", "w") as token:
-                    token.write(self.creds.to_json())
+                  # Generate auth URL manually
+                  auth_url, _ = flow.authorization_url(prompt='consent')
+                  print(f"\n{auth_url}\n", flush=True)
+                  
+                  # Wait for user to paste the code
+                  code = input("Enter the authorization code: ")
+                  flow.fetch_token(code=code)
+                  self.creds = flow.credentials
 
-            self.service = build("gmail", "v1", credentials=self.creds)
-            logging.info("Gmail authenticated successfully")
+              with open("tokens/gmail_token.json", "w") as token:
+                  token.write(self.creds.to_json())
+              logging.info("Gmail token saved")
 
-        except RefreshError:
-            logging.error("Invalid credentials, delete token.json and re-authenticate")
-            raise
-        except FileNotFoundError:
-            logging.error("credentials.json not found")
-            raise
+          self.service = build("gmail", "v1", credentials=self.creds)
+          logging.info("Gmail authenticated successfully")
+
+      except RefreshError:
+          logging.error("Invalid credentials, delete token and re-authenticate")
+          raise
+      except FileNotFoundError:
+          logging.error("credentials.json not found")
+          raise
 
     def get_history_id(self) -> str:
         # Ask storage first

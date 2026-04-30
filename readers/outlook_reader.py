@@ -20,25 +20,61 @@ class OutlookReader(BaseReader):
         self.token = None
         self._authenticate()
 
+    def _load_cache(self):
+        cache = msal.SerializableTokenCache()
+        token_path = Path("tokens/outlook_token.json")
+        
+        if token_path.exists():
+            cache.deserialize(token_path.read_text())
+        
+        return cache
+
+    def _save_cache(self, cache):
+        token_path = Path("tokens/outlook_token.json")
+        token_path.parent.mkdir(exist_ok=True)
+        
+        if cache.has_state_changed:
+            token_path.write_text(cache.serialize())
+            logging.info("Outlook token cache saved")
+
     def _authenticate(self):
         try:
+            cache = self._load_cache()
+
             app = msal.PublicClientApplication(
                 client_id=self.client_id,
-                authority=f"https://login.microsoftonline.com/consumers"
+                authority="https://login.microsoftonline.com/common",
+                token_cache=cache
             )
 
-            # Try to use cached token first
+            # Try cached token first
             accounts = app.get_accounts()
+            result = None
+
             if accounts:
                 result = app.acquire_token_silent(SCOPES, account=accounts[0])
-            else:
-                # Interactive login, opens the browser
-                result = app.acquire_token_interactive(scopes=SCOPES)
+                if result:
+                    logging.info("Outlook authenticated from cache")
+
+            # If no cached token use device flow
+            if not result:
+                flow = app.initiate_device_flow(scopes=SCOPES)
+
+                if "user_code" not in flow:
+                    raise Exception(f"Failed to create device flow: {flow.get('error')}")
+
+                # This prints the code in VPS logs
+                print(flow["message"], flush=True)
+                logging.info("Waiting for device flow authentication...")
+
+                result = app.acquire_token_by_device_flow(flow)
+
             if "access_token" in result:
                 self.token = result["access_token"]
+                self._save_cache(cache)
                 logging.info("Outlook authenticated successfully")
             else:
-                logging.error(f"Error authenticating Outlook: {result.get('error_description')}")
+                logging.error(f"Authentication error: {result.get('error_description')}")
                 raise Exception("Authentication failed")
 
         except Exception as e:

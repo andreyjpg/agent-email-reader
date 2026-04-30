@@ -1,12 +1,13 @@
 import aiohttp
 import asyncio
 import logging
+from config import Config
 
 class TelegramBotService():
-    def __init__(self, token: str, chat_id: str):
-        self.token = token
-        self.chat_id = chat_id
-        self.base_url = f"https://api.telegram.org/bot{token}"
+    def __init__(self):
+        self.token = Config.TELEGRAM_TOKEN
+        self.chat_id = Config.TELEGRAM_CHAT_ID
+        self.base_url = f"https://api.telegram.org/bot{Config.TELEGRAM_TOKEN}"
 
     def format_message(self, email: dict) -> str:
         return (
