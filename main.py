@@ -43,8 +43,8 @@ async def main():
         logging.error(f"Unknown email provider: {Config.EMAIL_PROVIDER}")
         return
     
-    classifier = Classifier(model=Config.OLLAMA_MODEL)
-    bot = TelegramBotService(token=Config.TELEGRAM_TOKEN, chat_id=Config.TELEGRAM_CHAT_ID)
+    classifier = Classifier()
+    bot = TelegramBotService()
 
     orchestrator = Orchestrator(reader, classifier, bot)
 

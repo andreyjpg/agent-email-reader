@@ -1,8 +1,12 @@
-from ollama import AsyncClient
+import logging
+from google import genai
+import asyncio
+from config import Config 
 
 class Classifier():
-    def __init__(self, model):
-        self.model = model
+    def __init__(self):
+        self.client = genai.Client(api_key=Config.GEMINI_API_KEY)
+        self.model = Config.GEMINI_MODEL
 
     def prompt_creation(self, sender: str, subject: str, fragment: str):
         return f"""
@@ -61,12 +65,27 @@ class Classifier():
         """
 
     async def llm_chat_creation(self, message): 
-        sender = message["sender"]
-        subject = message["subject"]
-        fragment = message["fragment"]
-        respuesta = await AsyncClient().chat(model=self.model, messages=[
-            {'role': 'user', 'content': self.prompt_creation(sender=sender, subject=subject, fragment=fragment)}
-        ])
+        try:
+            sender = message["sender"]
+            subject = message["subject"]
+            fragment = message["fragment"]
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(
+                None,
+                lambda: self.client.models.generate_content(
+                    model=self.model,
+                    contents=self.prompt_creation(
+                        sender=sender,
+                        subject=subject,
+                        fragment=fragment
+                    )
+                )
+            )
+            result = response.text.strip()
 
-        return respuesta['message']['content'].strip()
+            logging.info(f"Classification result: {result} | Subject: {subject}")
+            return result
+        except Exception as e:
+            logging.error(f"Unexpected error in Classifier: {e}")
+            return "IGNORE"
 
