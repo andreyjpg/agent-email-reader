@@ -1,6 +1,7 @@
 import logging
 from datetime import datetime, timezone
 
+import asyncio
 from sqlmodel import Session
 from google.oauth2.credentials import Credentials
 
@@ -26,11 +27,10 @@ class Orchestrator:
     async def run(self):
         clients = clientRepository(self.session).get_all()
         logging.info(f"Processing {len(clients)} active client(s)")
-        for client in clients:
-            try:
-                await self._process_client(client)
-            except Exception as e:
-                logging.error(f"Error processing client {client.email}: {e}")
+        await asyncio.gather(
+            *[self._process_client(client) for client in clients],
+            return_exceptions=True
+        )
 
     async def _process_client(self, client: Client):
         logging.info(f"Processing client: {client.email}")
