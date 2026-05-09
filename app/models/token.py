@@ -9,4 +9,4 @@ class Token(SQLModel, table=True):
     access_token: str
     refresh_token: str
     token_expiry: datetime
-    updated_at: Optional[datetime] = Field(default_factory=lambda: datetime.now(timezone.utc))  # bien
+    updated_at: Optional[datetime] = Field(default_factory=lambda: datetime.now(timezone.utc)) 
