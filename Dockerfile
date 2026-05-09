@@ -25,8 +25,9 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # Copy source code as root
 COPY . .
 
-# Create logs folder and fix all permissions before switching user
-RUN mkdir -p /app/logs && chown -R appuser:appuser /app
+RUN chown -R appuser:appuser /app
+
+ENV ENV=production
 
 # Switch to non-privileged user
 USER appuser

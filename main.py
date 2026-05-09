@@ -1,58 +1,44 @@
 import asyncio
 import logging
+import sentry_sdk
+from sentry_sdk.integrations.logging import LoggingIntegration
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from readers.gmail_reader import GmailReader
-from readers.outlook_reader import OutlookReader
-from orchestrator import Orchestrator
-from services.classifier import Classifier
-from services.telegram import TelegramBotService
-from config import Config
-from storage import Storage
-from pathlib import Path
-from logging.handlers import RotatingFileHandler
+from sqlmodel import Session
 
-# Create logs directory if it doesn't exist
-Path("logs").mkdir(exist_ok=True)
+from app.core.database import engine
+from app.orchestrator import Orchestrator
+from config import config
+
+sentry_sdk.init(
+    dsn=config.sentry_dsn,
+    integrations=[LoggingIntegration(level=logging.INFO, event_level=logging.ERROR)],
+    traces_sample_rate=0.2,
+    enable_logs=True
+)
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
-    handlers=[
-        RotatingFileHandler(
-            "logs/agent.log",
-            maxBytes=5_000_000,  # 5MB max per file
-            backupCount=3,        # keeps last 3 files
-            encoding="utf-8"
-        ),
-        # Also prints to console
-        logging.StreamHandler()
-    ]
+    handlers=[logging.StreamHandler()]
 )
 
 async def main():
-    storage = Storage()
-
-    # Select reader based on config
-    if Config.EMAIL_PROVIDER == "gmail":
-        reader = GmailReader(storage=storage)
-    elif Config.EMAIL_PROVIDER == "outlook":
-        reader = OutlookReader(storage=storage)
-    else:
-        logging.error(f"Unknown email provider: {Config.EMAIL_PROVIDER}")
-        return
-    
-    classifier = Classifier()
-    bot = TelegramBotService()
-
-    orchestrator = Orchestrator(reader, classifier, bot)
-
-    #scheduler
+    async def run_cycle():
+        with Session(engine) as session:
+            await Orchestrator(session).run()
+        
     scheduler = AsyncIOScheduler()
-    scheduler.add_job(orchestrator.run, 'interval', minutes=Config.POLLING_INTERVAL, max_instances=1, misfire_grace_time=30)
+    scheduler.add_job(
+        run_cycle,
+        'interval',
+        minutes=config.polling_interval,
+        max_instances=1,
+        misfire_grace_time=30
+    )
     scheduler.start()
-    logging.info("Agent started, wating for emails...")
+    logging.info("Agent started, waiting for emails...")
 
     await asyncio.Event().wait()
 

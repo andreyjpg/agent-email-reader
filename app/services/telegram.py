@@ -1,13 +1,12 @@
 import aiohttp
 import asyncio
 import logging
-from config import Config
+from config import config
 
 class TelegramBotService():
     def __init__(self):
-        self.token = Config.TELEGRAM_TOKEN
-        self.chat_id = Config.TELEGRAM_CHAT_ID
-        self.base_url = f"https://api.telegram.org/bot{Config.TELEGRAM_TOKEN}"
+        self.token = config.telegram_token
+        self.base_url = f"https://api.telegram.org/bot{config.telegram_token}"
 
     def format_message(self, email: dict) -> str:
         return (
@@ -17,10 +16,10 @@ class TelegramBotService():
             f"*Preview:*\n{email['fragment']}"
         )
 
-    async def send_telegram_msg(self, email) -> bool:
+    async def send_telegram_msg(self, email, chat_id: str | None = None) -> bool:
         url = f"{self.base_url}/sendMessage"
         payload = {
-            "chat_id": self.chat_id,
+            "chat_id": chat_id,
             "text": self.format_message(email),
             "parse_mode": "Markdown"
         }

@@ -1,24 +1,26 @@
 import logging
-from google import genai
 import asyncio
-from config import Config 
+import re
+from google import genai
+from config import config
+
 
 class Classifier():
     def __init__(self):
-        self.client = genai.Client(api_key=Config.GEMINI_API_KEY)
-        self.model = Config.GEMINI_MODEL
+        self.client = genai.Client(api_key=config.gemini_api_key)
+        self.model = config.gemini_model
 
     def prompt_creation(self, sender: str, subject: str, fragment: str):
         return f"""
             Eres un clasificador de correos electrónicos / You are an email classifier.
 
-            La empresa se dedica a ventas de equipos para datacenters y oficinas, especializada en 
+            La empresa se dedica a ventas de equipos para datacenters y oficinas, especializada en
             baterías, UPS y sistemas de abastecimiento de energía /
-            The company sells datacenter and office equipment, specialized in batteries, UPS systems 
+            The company sells datacenter and office equipment, specialized in batteries, UPS systems
             and power supply solutions.
 
-            Tu única tarea es analizar el asunto y remitente de un correo y responder ÚNICAMENTE con 
-            una de estas dos palabras / Your only task is to analyze the subject and sender of an email 
+            Tu única tarea es analizar el asunto y remitente de un correo y responder ÚNICAMENTE con
+            una de estas dos palabras / Your only task is to analyze the subject and sender of an email
             and respond ONLY with one of these two words:
 
             IMPORTANT o/or IGNORE
@@ -35,10 +37,10 @@ class Classifier():
             Urgent supplier alerts about deliveries, stock or price changes
             - Cualquier correo de una persona real que requiera respuesta directa /
             Any email from a real person that requires a direct response
-            - Palabras clave en español / Spanish keywords: cotización, cotizar, precio, presupuesto, 
+            - Palabras clave en español / Spanish keywords: cotización, cotizar, precio, presupuesto,
             disponibilidad, pedido, orden de compra, factura, urgente, batería, datacenter, inversor
-            - Palabras clave en inglés / English keywords: quote, quotation, pricing, budget, 
-            availability, purchase order, invoice, urgent, battery, UPS, datacenter, power supply, 
+            - Palabras clave en inglés / English keywords: quote, quotation, pricing, budget,
+            availability, purchase order, invoice, urgent, battery, UPS, datacenter, power supply,
             inverter, stock, delivery, lead time
 
             CLASIFICAR COMO IGNORE / CLASSIFY AS IGNORE:
@@ -64,28 +66,40 @@ class Classifier():
             Responde ÚNICAMENTE con / Respond ONLY with: IMPORTANT or IGNORE
         """
 
-    async def llm_chat_creation(self, message): 
-        try:
-            sender = message["sender"]
-            subject = message["subject"]
-            fragment = message["fragment"]
-            loop = asyncio.get_event_loop()
-            response = await loop.run_in_executor(
-                None,
-                lambda: self.client.models.generate_content(
-                    model=self.model,
-                    contents=self.prompt_creation(
-                        sender=sender,
-                        subject=subject,
-                        fragment=fragment
-                    )
+    def _parse_retry_delay(self, error_str: str) -> int:
+        match = re.search(r'retry[^0-9]*(\d+)', error_str, re.IGNORECASE)
+        return int(match.group(1)) + 5 if match else 60
+
+    async def _classify(self, message: dict) -> str:
+        loop = asyncio.get_event_loop()
+        response = await loop.run_in_executor(
+            None,
+            lambda: self.client.models.generate_content(
+                model=self.model,
+                contents=self.prompt_creation(
+                    sender=message["sender"],
+                    subject=message["subject"],
+                    fragment=message["fragment"],
                 )
             )
-            result = response.text.strip()
+        )
+        result = response.text.strip()
+        logging.info(f"Classification result: {result} | Subject: {message['subject']}")
+        return result
 
-            logging.info(f"Classification result: {result} | Subject: {subject}")
-            return result
+    async def llm_chat_creation(self, message: dict) -> str:
+        try:
+            return await self._classify(message)
         except Exception as e:
+            err_str = str(e)
+            if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
+                wait = self._parse_retry_delay(err_str)
+                logging.warning(f"Gemini rate limit hit, retrying in {wait}s...")
+                await asyncio.sleep(wait)
+                try:
+                    return await self._classify(message)
+                except Exception as retry_err:
+                    logging.error(f"Classifier retry failed: {retry_err}")
+                    return "IGNORE"
             logging.error(f"Unexpected error in Classifier: {e}")
             return "IGNORE"
-
