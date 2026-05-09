@@ -223,6 +223,7 @@ tokens/
 token.json
 credentials.json
 .env
+.env.*
 logs/
 data.json
 __pycache__/
