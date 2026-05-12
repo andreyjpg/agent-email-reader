@@ -77,7 +77,7 @@ class Orchestrator:
         messages, new_sync_token = await reader.get_new_messages(sync_token)
 
         for msg in messages:
-            result = await self.classifier.llm_chat_creation(msg)
+            result = await self.classifier.llm_chat_creation(msg, client.keywords)
             if result == "IMPORTANT":
                 await self.bot.send_telegram_msg(msg, chat_id=client.telegram_chat)
 
