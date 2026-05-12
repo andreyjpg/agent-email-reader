@@ -10,18 +10,17 @@ from app.core.database import engine
 from app.orchestrator import Orchestrator
 from config import config
 
-sentry_sdk.init(
-    dsn=config.sentry_dsn,
-    integrations=[LoggingIntegration(level=logging.INFO, event_level=logging.ERROR)],
-    traces_sample_rate=0.2,
-    enable_logs=True
-)
-
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
     handlers=[logging.StreamHandler()]
+)
+
+sentry_sdk.init(
+    dsn=config.sentry_dsn,
+    integrations=[LoggingIntegration(level=logging.INFO, event_level=logging.ERROR)],
+    traces_sample_rate=0.2,
 )
 
 async def main():
