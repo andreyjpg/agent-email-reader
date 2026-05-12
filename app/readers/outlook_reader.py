@@ -34,6 +34,8 @@ class OutlookReader(BaseReader):
             result = app.acquire_token_by_refresh_token(self.refresh_token, scopes=SCOPES)
             if "access_token" in result:
                 self.access_token = result["access_token"]
+                if "refresh_token" in result:
+                    self.refresh_token = result["refresh_token"]
                 expires_in = result.get("expires_in", 3600)
                 self.token_expiry = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
                 logging.info("Outlook token refreshed successfully")
