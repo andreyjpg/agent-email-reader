@@ -2,6 +2,7 @@ import asyncio
 import logging
 import sentry_sdk
 from sentry_sdk.integrations.logging import LoggingIntegration
+from sentry_sdk.integrations.asyncio import AsyncioIntegration
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from sqlmodel import Session
@@ -19,7 +20,10 @@ logging.basicConfig(
 
 sentry_sdk.init(
     dsn=config.sentry_dsn,
-    integrations=[LoggingIntegration(level=logging.INFO, event_level=logging.ERROR)],
+    integrations=[
+        LoggingIntegration(level=logging.INFO, event_level=logging.ERROR),
+        AsyncioIntegration(),
+    ],
     traces_sample_rate=0.2,
 )
 
