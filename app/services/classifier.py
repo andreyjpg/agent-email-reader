@@ -2,6 +2,7 @@ import logging
 import asyncio
 import re
 from google import genai
+from google.genai import types
 from config import config
 
 
@@ -9,9 +10,10 @@ class Classifier():
     def __init__(self):
         self.client = genai.Client(api_key=config.gemini_api_key)
         self.model = config.gemini_model
+        self.system_instruction = self._build_system_instruction()
 
-    def prompt_creation(self, sender: str, subject: str, fragment: str):
-        return f"""
+    def _build_system_instruction(self) -> str:
+        return """
             Eres un clasificador de correos electrónicos / You are an email classifier.
 
             La empresa se dedica a ventas de equipos para datacenters y oficinas, especializada en
@@ -57,39 +59,54 @@ class Classifier():
 
             El correo puede estar escrito en español, inglés o ambos. Detecta el idioma automáticamente.
             The email can be written in Spanish, English or both. Detect the language automatically.
-
-            Correo a clasificar / Email to classify:
-            Remitente / Sender: {sender}
-            Asunto / Subject: {subject}
-            Fragmento / Snippet: {fragment}
-
-            Responde ÚNICAMENTE con / Respond ONLY with: IMPORTANT or IGNORE
         """
+
+    def _build_user_message(self, sender: str, subject: str, fragment: str, keywords: list[str]) -> str:
+        keywords_section = ""
+        if keywords:
+            keywords_section = (
+                f"Palabras clave adicionales del cliente / Additional client keywords "
+                f"(clasificar como IMPORTANT si aparecen / classify as IMPORTANT if present): "
+                f"{', '.join(keywords)}\n\n"
+            )
+        return (
+            f"{keywords_section}"
+            f"Correo a clasificar / Email to classify:\n"
+            f"Remitente / Sender: {sender}\n"
+            f"Asunto / Subject: {subject}\n"
+            f"Fragmento / Snippet: {fragment}\n\n"
+            f"Responde ÚNICAMENTE con / Respond ONLY with: IMPORTANT or IGNORE"
+        )
 
     def _parse_retry_delay(self, error_str: str) -> int:
         match = re.search(r'retry[^0-9]*(\d+)', error_str, re.IGNORECASE)
         return int(match.group(1)) + 5 if match else 60
 
-    async def _classify(self, message: dict) -> str:
+    async def _classify(self, message: dict, keywords: list[str]) -> str:
+        user_message = self._build_user_message(
+            sender=message["sender"],
+            subject=message["subject"],
+            fragment=message["fragment"],
+            keywords=keywords,
+        )
         loop = asyncio.get_event_loop()
         response = await loop.run_in_executor(
             None,
             lambda: self.client.models.generate_content(
                 model=self.model,
-                contents=self.prompt_creation(
-                    sender=message["sender"],
-                    subject=message["subject"],
-                    fragment=message["fragment"],
-                )
+                contents=user_message,
+                config=types.GenerateContentConfig(
+                    system_instruction=self.system_instruction,
+                ),
             )
         )
         result = response.text.strip()
         logging.info(f"Classification result: {result} | Subject: {message['subject']}")
         return result
 
-    async def llm_chat_creation(self, message: dict) -> str:
+    async def llm_chat_creation(self, message: dict, keywords: list[str] = []) -> str:
         try:
-            return await self._classify(message)
+            return await self._classify(message, keywords)
         except Exception as e:
             err_str = str(e)
             if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
@@ -97,7 +114,7 @@ class Classifier():
                 logging.warning(f"Gemini rate limit hit, retrying in {wait}s...")
                 await asyncio.sleep(wait)
                 try:
-                    return await self._classify(message)
+                    return await self._classify(message, keywords)
                 except Exception as retry_err:
                     logging.error(f"Classifier retry failed: {retry_err}")
                     return "IGNORE"
