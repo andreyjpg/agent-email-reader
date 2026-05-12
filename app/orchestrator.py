@@ -93,9 +93,9 @@ class Orchestrator:
             else:
                 sync_repo.create_sync(SyncState(client_id=client.id, **sync_data))
 
-        self._update_token_if_refreshed(client, token_row, reader, original_access_token)
+        self._update_token_if_refreshed(client, token_row, reader, original_access_token, refresh_token)
 
-    def _update_token_if_refreshed(self, client: Client, token_row, reader, original_access_token: str):
+    def _update_token_if_refreshed(self, client: Client, token_row, reader, original_access_token: str, original_refresh_token: str):
         token_repo = TokenRepository(self.session)
 
         if client.email_provider == EmailProvider.GMAIL:
@@ -112,9 +112,12 @@ class Orchestrator:
                 logging.info(f"Gmail token updated in DB for {client.email}")
         else:
             if reader.access_token != original_access_token:
-                token_repo.update(token_row, {
+                update_data = {
                     "access_token": encrypt(reader.access_token),
                     "token_expiry": reader.token_expiry,
                     "updated_at": datetime.now(timezone.utc),
-                })
+                }
+                if reader.refresh_token != original_refresh_token:
+                    update_data["refresh_token"] = encrypt(reader.refresh_token)
+                token_repo.update(token_row, update_data)
                 logging.info(f"Outlook token updated in DB for {client.email}")
