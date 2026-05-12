@@ -61,7 +61,7 @@ class OutlookReader(BaseReader):
         # Sweep all pages with minimal fields just to land on the current deltaLink.
         # No messages are processed — this sets the "start from now" position.
         url = f"{GRAPH_API}/me/mailFolders/inbox/messages/delta"
-        params = {"$select": "id", "$top": "999"}
+        params = {"$select": "id,subject,from,isRead,bodyPreview", "$top": "999"}
 
         while url:
             data = await self._fetch_page(session, url, params)
