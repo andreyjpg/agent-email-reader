@@ -54,6 +54,15 @@ class Classifier():
             - Noticias del sector sin solicitud previa / Industry news or product updates not requested
             - Resúmenes semanales o mensuales / Weekly or monthly summaries of any service
 
+            IMPORTANTE — IGNORA LAS FIRMAS DE CORREO / IMPORTANT — IGNORE EMAIL SIGNATURES:
+            El fragmento puede incluir la firma del remitente al final (nombre, cargo, empresa, teléfono,
+            dirección). NO uses la firma para clasificar. Evalúa SOLO el contenido real del mensaje.
+            Ejemplos de firmas a ignorar: "Regards, John, Sales Engineer", "Saludos, María, Gerente
+            Comercial", "Best, Alex | Account Executive". Si el cuerpo del mensaje no contiene una
+            solicitud real, clasifica como IGNORE aunque la firma mencione cargos relacionados con ventas.
+            The fragment may include the sender's signature (name, title, company, phone, address).
+            Do NOT use the signature to classify. Evaluate ONLY the actual message content.
+
             EN CASO DE DUDA, clasifica como IMPORTANT / WHEN IN DOUBT, classify as IMPORTANT.
             It is better to review one extra email than to miss a sales opportunity.
 

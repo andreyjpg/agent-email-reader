@@ -6,7 +6,7 @@ from datetime import datetime, timezone, timedelta
 from app.readers.base_reader import BaseReader
 import config
 
-SCOPES = ["https://graph.microsoft.com/Mail.Read"]
+SCOPES = ["https://graph.microsoft.com/Mail.Read", "offline_access"]
 GRAPH_API = "https://graph.microsoft.com/v1.0"
 
 class OutlookReader(BaseReader):
