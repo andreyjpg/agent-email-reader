@@ -28,7 +28,6 @@ httpx==0.28.1
 httpx-aiohttp==0.1.12
 idna==3.13
 jiter==0.14.0
-msal==1.36.0
 multidict==6.7.1
 oauthlib==3.3.1
 ollama==0.6.1

@@ -1,13 +1,13 @@
 import logging
 import aiohttp
 import asyncio
-import msal
 from datetime import datetime, timezone, timedelta
 from app.readers.base_reader import BaseReader
-import config
 
-SCOPES = ["https://graph.microsoft.com/Mail.Read", "offline_access"]
+TOKEN_URL = "https://login.microsoftonline.com/common/oauth2/v2.0/token"
 GRAPH_API = "https://graph.microsoft.com/v1.0"
+SCOPE = "https://graph.microsoft.com/Mail.Read offline_access"
+
 
 class OutlookReader(BaseReader):
     def __init__(self, access_token: str, refresh_token: str, token_expiry: datetime, client_id: str, client_secret: str):
@@ -24,24 +24,27 @@ class OutlookReader(BaseReader):
             "Content-Type": "application/json"
         }
 
-    def _refresh_token(self) -> bool:
+    async def _refresh_access_token(self, session: aiohttp.ClientSession) -> bool:
         try:
-            app = msal.ConfidentialClientApplication(
-                client_id=self.client_id,
-                client_credential=self.client_secret,
-                authority="https://login.microsoftonline.com/common"
-            )
-            result = app.acquire_token_by_refresh_token(self.refresh_token, scopes=SCOPES)
-            if "access_token" in result:
-                self.access_token = result["access_token"]
-                if "refresh_token" in result:
-                    self.refresh_token = result["refresh_token"]
-                expires_in = result.get("expires_in", 3600)
-                self.token_expiry = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
-                logging.info("Outlook token refreshed successfully")
-                return True
-            logging.error(f"Outlook token refresh failed: {result.get('error_description')}")
-            return False
+            data = {
+                "grant_type": "refresh_token",
+                "client_id": self.client_id,
+                "client_secret": self.client_secret,
+                "refresh_token": self.refresh_token,
+                "scope": SCOPE,
+            }
+            async with session.post(TOKEN_URL, data=data) as response:
+                result = await response.json()
+                if "access_token" in result:
+                    self.access_token = result["access_token"]
+                    if "refresh_token" in result:
+                        self.refresh_token = result["refresh_token"]
+                    expires_in = result.get("expires_in", 3600)
+                    self.token_expiry = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
+                    logging.info("Outlook token refreshed successfully")
+                    return True
+                logging.error(f"Outlook token refresh failed: {result.get('error_description')}")
+                return False
         except Exception as e:
             logging.error(f"Error refreshing Outlook token: {e}")
             return False
@@ -50,7 +53,7 @@ class OutlookReader(BaseReader):
         async with session.get(url, headers=self._get_headers(), params=params) as response:
             if response.status == 401 and not already_refreshed:
                 logging.warning("Outlook token expired, refreshing...")
-                if self._refresh_token():
+                if await self._refresh_access_token(session):
                     return await self._fetch_page(session, url, params, already_refreshed=True)
                 return None
             if response.status != 200:
@@ -60,8 +63,6 @@ class OutlookReader(BaseReader):
             return await response.json()
 
     async def _get_initial_delta_token(self, session: aiohttp.ClientSession) -> str | None:
-        # Sweep all pages with minimal fields just to land on the current deltaLink.
-        # No messages are processed — this sets the "start from now" position.
         url = f"{GRAPH_API}/me/mailFolders/inbox/messages/delta"
         params = {"$select": "id,subject,from,isRead,bodyPreview", "$top": "999"}
 
