@@ -76,9 +76,19 @@ class GmailReader(BaseReader):
 
         except HttpError as e:
             if e.status_code == 404:
-                logging.warning("Gmail history_id expired or invalid, resetting sync position on next run")
-                return [], None
-            logging.error(f"Gmail API error {e.status_code}: {e}")
+                logging.warning("Gmail history_id expired, fetching fresh position...")
+                try:
+                    loop = asyncio.get_running_loop()
+                    profile = await loop.run_in_executor(
+                        None, lambda: self.service.users().getProfile(userId="me").execute()
+                    )
+                    fresh_id = profile["historyId"]
+                    logging.info(f"Gmail sync position reset to current historyId")
+                    return [], fresh_id
+                except Exception as reset_err:
+                    logging.error(f"Gmail failed to fetch fresh history position: {reset_err}")
+            else:
+                logging.error(f"Gmail API error {e.status_code}: {e}")
             return [], sync_token
         except RefreshError as e:
             logging.error(f"Gmail token expired, re-authentication required: {e}")
