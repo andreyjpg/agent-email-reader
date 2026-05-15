@@ -27,10 +27,13 @@ class Orchestrator:
     async def run(self):
         clients = clientRepository(self.session).get_all()
         logging.info(f"Processing {len(clients)} active client(s)")
-        await asyncio.gather(
+        results = await asyncio.gather(
             *[self._process_client(client) for client in clients],
             return_exceptions=True
         )
+        for client, result in zip(clients, results):
+            if isinstance(result, Exception):
+                logging.error(f"Unhandled error processing client {client.email}", exc_info=result)
 
     async def _process_client(self, client: Client):
         logging.info(f"Processing client: {client.email}")
