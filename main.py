@@ -25,6 +25,7 @@ sentry_sdk.init(
         AsyncioIntegration(),
     ],
     traces_sample_rate=0.2,
+    enable_logs=True
 )
 
 async def main():
